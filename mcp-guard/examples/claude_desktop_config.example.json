@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "mcp-guard-demo": {
+      "command": "python",
+      "args": ["/ABSOLUTE/PATH/TO/mcp-guard/examples/demo_server.py"]
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "decision_timeout": 60,
+  "fail_mode": "block",
+  "allow_rules": ["demo:get_time"],
+  "block_rules": ["*:delete*"],
+  "guarded_methods": ["tools/call"],
+  "log_arguments": false
+}
