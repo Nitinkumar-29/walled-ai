@@ -87,6 +87,35 @@ In Claude: *Settings → Connectors → Add custom connector* →
 If the upstream uses OAuth, also pass `--public-url https://<tunnel-host>` so discovery documents
 are rewritten to point at the proxy (best-effort; see limitations).
 
+#### Try the bundled HTTP demo
+The Desktop demo server uses stdio and cannot be used as an HTTP upstream. For Claude Web, run the
+bundled stateless Streamable-HTTP demo server and put `proxy-http` in front of it. Keep each command
+running in a separate terminal:
+
+1. Start the approval daemon:
+   ```bash
+   ./.venv/Scripts/python.exe -m mcp_guard daemon
+   ```
+2. Start the HTTP demo upstream:
+   ```bash
+   MCP_DEMO_LOG="$PWD/demo-http.log" ./.venv/Scripts/python.exe examples/demo_http_server.py
+   ```
+3. Generate an unguessable path secret, then start the guard proxy (replace the placeholder with
+   the generated value):
+   ```bash
+   ./.venv/Scripts/python.exe -c "import secrets; print(secrets.token_urlsafe(32))"
+   ./.venv/Scripts/python.exe -m mcp_guard proxy-http --name mcp-guard-demo \
+       --upstream http://127.0.0.1:8000/mcp --listen-port 8765 --secret "PASTE_GENERATED_SECRET_HERE"
+   ```
+4. Expose only the guard proxy through a tunnel:
+   ```bash
+   cloudflared tunnel --url http://127.0.0.1:8765
+   ```
+   Add a custom connector in Claude Web using
+   `https://<tunnel-host>/<YOUR_SECRET>/mcp` (replace both placeholders). Keep the proxy secret private. Ask Claude to use
+   `echo` and choose Allow, then call `delete_file` and choose Block; this demo only pretends to
+   delete files. `demo-http.log` should contain the allowed call but not the blocked one.
+
 ### 3. Autostart (so it "runs in the background")
 * **macOS** – a LaunchAgent in `~/Library/LaunchAgents` with `ProgramArguments = [<venv>/bin/python, -m, mcp_guard, daemon]`, `RunAtLoad`, `KeepAlive`.
 * **Windows** – Task Scheduler → "At log on" → `<venv>\Scripts\pythonw.exe -m mcp_guard daemon`.
@@ -151,17 +180,18 @@ mcp_guard/
   protocol.py     JSON-RPC/MCP parsing + denial responses (pure functions)
   installer.py    safe, reversible Claude Desktop config rewrite
   audit.py · config.py · models.py · daemon.py
-examples/demo_server.py   dependency-free MCP server (echo, get_time, delete_file) for demos/tests
-tests/                    19 tests: protocol, broker, installer, stdio e2e, http e2e
+examples/demo_server.py   dependency-free stdio MCP server for Desktop demos/tests
+examples/demo_http_server.py  Streamable-HTTP MCP server for Web demos
+tests/                    20 tests: protocol, broker, installer, stdio and HTTP e2e
 ```
 
 ## Tests
 ```bash
 pip install -e ".[dev]" && pytest -q
 ```
-The e2e tests launch the *real* proxy in front of `demo_server.py` and prove, via the server's own
-execution log, that blocked calls never reach it; they also cover concurrency, cancellation,
-daemon-down fail-closed/fail-open, and the HTTP proxy.
+The e2e tests launch the real proxies in front of the demo servers and prove, via the servers'
+execution logs, that blocked calls never reach them; they also cover concurrency, cancellation,
+daemon-down fail-closed/fail-open, and HTTP passthrough.
 
 ## Demo script (for the video)
 1. `mcp-guard daemon` in a terminal; add `examples/demo_server.py` to Claude Desktop config; `mcp-guard install`; restart Desktop.
